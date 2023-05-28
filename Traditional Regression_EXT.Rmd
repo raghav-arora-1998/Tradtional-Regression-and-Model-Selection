@@ -1,0 +1,74 @@
+---
+title: ""
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r lib}
+library(ISLR)
+library(tidyverse)
+library(tidymodels)
+library(modelr)
+library(purrr)
+library(rsample)
+library(tidyr)
+library(here)
+```
+
+```{r}
+options(scipen = 999)
+```
+
+```{r}
+insurance <- read.csv(here("Data", "Insurance_Costs_1.csv"))
+insurance_new <- read_csv("https://www.dropbox.com/s/sky86agc4s8c6qe/insurance_costs_2.csv?dl=1")
+```
+
+##Part 4 - Q1: Model 2
+
+```{r}
+lin_reg <- linear_reg() %>%
+  set_mode("regression") %>%
+  set_engine("lm")
+
+modelB <- lin_reg %>%
+  fit(charges ~ age + bmi, data = insurance)
+
+insurance_new <- insurance_new %>%
+  mutate(predB = predict(modelB, insurance_new)$.pred)
+
+# MSE for modelB
+mean((insurance_new$charges - insurance_new$predB)^2)
+```
+
+##Create cross validation function that takes in the model parameters, the dataset and the number of folds for cross validation and returns the MSE.
+
+```{r}
+crossV <- function(data, k){
+  cv <- crossv_kfold(data, k)
+  prediction  <- function(model, test_data){
+    data  <- as.data.frame(test_data)
+    pred  <- add_predictions(data, model)
+    return(pred)
+  }
+  
+  model = map(cv$train, ~lm(charges ~ age + bmi, data = .))
+  
+  
+  pred1  <- map2_df(model, cv$test, prediction, .id = "C")
+  
+  MSE1  <- pred1 %>% group_by(C) %>%
+    summarise(MSE = mean( (charges - pred)^2))
+  return (mean(MSE1$MSE))
+}
+
+crossV(insurance_new, 5)
+```
+
